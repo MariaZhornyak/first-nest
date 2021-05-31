@@ -1,10 +1,13 @@
-import { Body, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Publication } from './entities/publication.entity';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreatePublicationDto } from './dto/create-publication.dto';
-import { AuthMiddleware } from 'src/middleware/auth.middleware';
-
+import { ICurrentUser } from 'src/auth/interfaces/current-user.interface';
 @Injectable()
 export class PublicationService {
   constructor(
@@ -15,7 +18,10 @@ export class PublicationService {
   async getPublicationsList(): Promise<Publication[]> {
     const publicationList = await this.publicationRepository.find();
     if (!publicationList) {
-      throw new NotFoundException(`Publication list is empty`);
+      throw new NotFoundException({
+        success: false,
+        message: `Publication list is empty`,
+      });
     }
     return publicationList;
   }
@@ -23,23 +29,23 @@ export class PublicationService {
   async getSinglePublication(id: string): Promise<Publication> {
     const publication = await this.publicationRepository.findOne(id);
     if (!publication) {
-      throw new NotFoundException(`Publication #${id} not found`);
+      throw new NotFoundException({
+        success: false,
+        message: `Publication #${id} not found`,
+      });
     }
     return publication;
   }
 
   async createPublication(
-    @Body() createPublicationDto: CreatePublicationDto
+    createPublicationDto: CreatePublicationDto,
+    user: ICurrentUser
   ): Promise<Publication> {
-    const { title, publicationBody, created, updated } = createPublicationDto;
-    const userId = AuthMiddleware['userId'];
     const publication = new Publication();
 
-    publication.title = title;
-    publication.publicationBody = publicationBody;
-    publication.created = created;
-    publication.updated = updated;
-    publication.userId = userId;
+    publication.title = createPublicationDto.title;
+    publication.publicationBody = createPublicationDto.publicationBody;
+    publication.userId = user.id;
 
     await this.publicationRepository.save(publication);
     return publication;
@@ -47,27 +53,52 @@ export class PublicationService {
 
   async updatePublication(
     id: string,
-    updatePublicationDto: CreatePublicationDto
+    updatePublicationDto: CreatePublicationDto,
+    user: ICurrentUser
   ): Promise<Publication> {
-    const { title, publicationBody, created, updated } = updatePublicationDto;
     const publication = await this.publicationRepository.findOne(id);
 
-    if (publication.userId != AuthMiddleware['userId']) {
-      console.log(AuthMiddleware['userId'], publication.userId);
+    if (!publication) {
+      throw new NotFoundException({
+        success: false,
+        message: `Publication #${id} not found`,
+      });
     }
 
-    publication.title = title;
-    publication.publicationBody = publicationBody;
-    publication.created = created;
-    publication.updated = updated;
+    if (publication.userId != user.id) {
+      throw new BadRequestException({
+        success: false,
+        message: 'Access denied',
+      });
+    }
+
+    publication.title = updatePublicationDto.title;
+    publication.publicationBody = updatePublicationDto.publicationBody;
 
     await this.publicationRepository.save(publication);
-
     return publication;
   }
 
-  async deletePulication(id: string): Promise<void> {
+  async deletePublication(
+    id: string,
+    user: ICurrentUser
+  ): Promise<Publication> {
     const publication = await this.publicationRepository.findOne(id);
-    await this.publicationRepository.remove(publication);
+
+    if (!publication) {
+      throw new NotFoundException({
+        success: false,
+        message: `Publication #${id} not found`,
+      });
+    }
+
+    if (publication.userId != user.id) {
+      throw new BadRequestException({
+        success: false,
+        message: 'Access denied',
+      });
+    }
+
+    return await this.publicationRepository.remove(publication);
   }
 }

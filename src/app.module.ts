@@ -1,16 +1,10 @@
-import {
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-  RequestMethod,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PublicationModule } from './publication/publication.module';
-import { AuthMiddleware } from './middleware/auth.middleware';
 import { config } from './config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { PublicationController } from './publication/publication.controller';
 
 @Module({
   imports: [
@@ -25,16 +19,4 @@ import { PublicationController } from './publication/publication.controller';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer): void {
-    consumer
-      .apply(AuthMiddleware)
-      .exclude(
-        { path: 'posts', method: RequestMethod.POST },
-        { path: 'posts', method: RequestMethod.PUT },
-        { path: 'posts', method: RequestMethod.DELETE },
-        'posts/(.*)'
-      )
-      .forRoutes(PublicationController);
-  }
-}
+export class AppModule {}
